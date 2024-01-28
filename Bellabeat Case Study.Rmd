@@ -1,0 +1,370 @@
+---
+title: "Bellabeat Case Study"
+author: "Shweta Raut"
+date: "2024-01-28"
+output: html_document
+---
+
+
+## Introduction:
+Welcome to the Process and Analysis phase of the Bellabeat case study. As part of the Google Data Analytics Professional Certificate Course, we will dive into the data-driven approach to understanding Bellabeat, a high-tech company specializing in health-focused smart products for women.
+
+## Case Study Overview:
+Bellabeat manufactures innovative smart products that track various health metrics such as activity levels, sleep patterns, stress levels, and reproductive health. The company's mission is to empower women with knowledge about their health and habits, ultimately promoting overall well-being.
+
+## The Scenario
+In my role as a junior analyst working in the marketing analyst team at Bellabeat, I am performing an analysis of smart device fitness data for the products provided by Bellabeat to gain insights on customer usage.
+
+
+## Step 3: Process Phase
+
+### Install the packages:
+```{r}
+install.packages("tidyverse")
+```
+
+```{r}
+install.packages("skimr")
+```
+
+```{r}
+install.packages("janitor")
+```
+
+```{r}
+install.packages("lubridate")
+```
+
+```{r}
+install.packages("readr")
+```
+
+```{r}
+install.packages("reshape2")
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+library(skimr)
+```
+
+```{r}
+library(janitor)
+```
+
+```{r}
+library(lubridate)
+```
+
+```{r}
+library(readr)
+```
+
+```{r}
+library("reshape2")
+```
+
+
+### Importing the data sets:
+```{r}
+Daily_Activity <- read_csv("dailyActivity_merged.csv")
+```
+
+```{r}
+Daily_Calories <- read_csv("dailyCalories_merged.csv")
+```
+
+```{r}
+Sleep_Day <- read_csv("sleepDay_merged.csv")
+```
+
+```{r}
+Daily_Steps <- read_csv("dailySteps_merged.csv")
+```
+
+```{r}
+Hourly_Intensities <- read_csv("hourlyIntensities_merged.csv")
+```
+
+### Previewing the datasets:
+```{r}
+head(Daily_Activity)
+```
+
+```{r}
+head(Daily_Calories)
+```
+
+```{r}
+head(Daily_Steps)
+```
+
+```{r}
+head(Sleep_Day)
+```
+
+```{r}
+head(Hourly_Intensities)
+```
+
+I will be using the following datasets:
+* Daily_Activity,
+* Sleep_Day,
+* Hourly_Intensities
+
+
+### Check for duplicate entries:
+```{r}
+sum(duplicated(Daily_Activity))
+```
+
+```{r}
+sum(duplicated(Sleep_Day))
+```
+
+```{r}
+sum(duplicated(Hourly_Intensities))
+```
+
+The Sleep_Day dataset has 3 duplicates.
+
+
+### Removing duplicates from the dataset:
+And removing N/A or blank fields:
+```{r}
+Sleep_Day <- Sleep_Day %>%
+  distinct() %>%
+  drop_na()
+```
+
+Verifying if the result is now correct:
+```{r}
+sum(duplicated(Sleep_Day))
+```
+
+
+### Formatting
+To make sure all the column names in each file are in the same format and have a correct syntax, let's make all the column names format to lowercase:
+```{r}
+Daily_Activity <- rename_with(Daily_Activity, tolower)
+
+Sleep_Day <- rename_with(Sleep_Day, tolower)
+```
+
+
+### Renaming
+From the tibbles displayed, I found out that the date column has a different name in the files. To  keep it consistent, let's rename it as date:
+```{r}
+Daily_Activity <- Daily_Activity %>% 
+  rename(date = activitydate) %>% 
+  mutate(date = as_date(date, format = "%m/%d/%Y"))
+
+Sleep_Day <- Sleep_Day %>% 
+  rename(date = sleepday) %>% 
+   mutate(date = as_date(date, format = "%m/%d/%Y  %I:%M:%S %p"))
+```
+
+
+### Merging datasets:
+```{r}
+DailyActivity_Sleep <- merge(Daily_Activity, Sleep_Day, by=c("id", "date"))
+
+glimpse(DailyActivity_Sleep)
+```
+
+
+## Step 4: Analysis Phase
+ 
+ 
+I will begin with calculating the average steps, average distance, average calories, and average of sleep minutes.
+```{r}
+Averages <- DailyActivity_Sleep %>% 
+  group_by(id) %>% 
+  summarise(date,mean_daily_steps = mean(totalsteps), mean_distance = mean(totaldistance), mean_daily_calories = mean(calories), mean_daily_sleep = mean(totalminutesasleep))
+
+head(Averages)
+```
+
+```{r}
+Min_Steps <- min(Averages$mean_daily_steps, na.rm = TRUE)
+Min_Steps
+Max_Steps <- max(Averages$mean_daily_steps, na.rm = TRUE)
+Max_Steps
+```
+
+
+### Now to classify the users based on their average daily steps:
+```{r}
+User_Type <- Averages %>% 
+  mutate(User_Type = case_when(
+    mean_daily_steps < 4000 ~ "sedentary",
+    mean_daily_steps >= 4000 & mean_daily_steps < 8000 ~ "lightly active",
+    mean_daily_steps >= 8000 & mean_daily_steps <12000 ~ "fairly active",
+    mean_daily_steps > 12000 ~ "very active"))
+
+head(User_Type)
+```
+
+
+### Creating a data frame to use this in a visualization:
+```{r}
+User_Type_Percent <- User_Type %>%
+  group_by(User_Type) %>%
+  summarise(total = n()) %>%
+  mutate(totals = sum(total)) %>%
+  group_by(User_Type) %>%
+  summarise(total_percent = total / totals) %>%
+  mutate(labels = scales::percent(total_percent))
+
+User_Type_Percent$User_Type <- factor(User_Type_Percent$User_Type , levels = c("very active", "fairly active", "lightly active", "sedentary"))
+
+head(User_Type_Percent)
+```
+
+
+### Visualizing the categories created in a Bar Chart format to make the data easy to understand:
+```{r}
+User_Type_Percent %>%
+  ggplot(aes(x = User_Type, y = total_percent, fill = User_Type)) +
+  geom_bar(stat = "identity", width = 0.7) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold", color = "darkgreen")
+  ) +
+  scale_fill_manual(values = c("#FF9999", "#66B2FF", "#99FF99", "#FFD700")) +
+  geom_text(aes(label = labels), position = position_stack(vjust = 0.5)) +
+  labs(
+    title = "Distribution of User Types",
+    x = "User Type",
+    y = "Total Percent"
+  )
+```
+
+
+### We can also view it as a heatmap for different categories and users for different dates:
+```{r}
+heatmap_data <- User_Type[, c("date", "id", "User_Type")]
+
+melted_data <- reshape2::melt(heatmap_data, id.vars = c("date", "id"))
+
+melted_data$date <- as.Date(melted_data$date)
+
+# Heatmap with four discrete values
+ggplot(melted_data, aes(x = date, y = factor(id), fill = value)) +
+  geom_tile() +
+  scale_fill_manual(values = c("#FFD700", "#FFA500", "#FF8C00", "#C71585")) +  
+  labs(
+    title = "Heatmap of Activity Category Over Different Dates",
+    x = "Date",
+    y = "ID",
+    fill = "Activity Category"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_date(date_breaks = "1 day", date_labels = "%d %b")
+```
+
+
+We see more users to be "fairly active".
+
+
+### Analysis of Sleep data:
+```{r}
+ggplot(data = Sleep_Day, aes(x = totaltimeinbed, y = totalminutesasleep)) +
+  geom_smooth(color = "#3366cc", fill = "#66a3ff", method = "auto", se = FALSE) +
+  geom_jitter(color = "#ff9900", alpha = 0.7) +
+  labs(
+    title = "Total Time When Asleep Vs Time In Bed",
+    x = "Total Time In Bed (minutes)",
+    y = "Total Minutes Asleep"
+  ) +
+  theme_light()
+```
+
+
+Notably, the graphical representation suggested a linear correlation between these variables. 
+
+
+### Analysis of Steps data:
+```{r}
+Average_Steps <- DailyActivity_Sleep %>%
+  group_by(id, date) %>%
+  summarize(average_steps = mean(totalsteps))
+
+print(Average_Steps)
+```
+
+### Analysis of Steps taken in a week:
+```{r}
+# Convert date to day of the week
+DailyActivity_Sleep$day_of_week <- weekdays(DailyActivity_Sleep$date)
+
+# Order days of the week
+DailyActivity_Sleep$day_of_week <- factor(DailyActivity_Sleep$day_of_week, levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+
+ggplot(DailyActivity_Sleep, aes(x = day_of_week, y = totalsteps, fill = day_of_week)) +
+   geom_col(fill =  '#800080') +
+  labs(title = "Steps Taken Across Days of the Week", x = "Day of the Week", y = "Total Steps") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+From the Bar graph, users are most active on Tuesdays. And least steps are taken on Sunday.
+
+
+### Analysis of Hourly Intensity data:
+```{r}
+Hourly_Intensities$ActivityHour <- as.POSIXct(Hourly_Intensities$ActivityHour, format="%m/%d/%Y %I:%M:%S %p")
+
+# extract hour from the ActivityHour
+Hourly_Intensities$Hour <- hour(Hourly_Intensities$ActivityHour)
+
+# group by hour and calculate the total intensity for each hour
+active_hours <- Hourly_Intensities %>%
+  group_by(Hour) %>%
+  summarize(TotalIntensity = sum(TotalIntensity))
+
+# Let's find the hour with the maximum total intensity
+max_intensity_hour <- active_hours %>%
+  filter(TotalIntensity == max(TotalIntensity))
+
+print(max_intensity_hour)
+```
+
+
+### And we can visualize with:
+```{r}
+ggplot(active_hours, aes(x = factor(Hour), y = TotalIntensity)) +
+  geom_bar(stat = "identity", fill = "#90EE90", color = "black") +
+  labs(
+    title = "Active Hours of the Day based on Total Intensity",
+    x = "Hour",
+    y = "Total Intensity"
+  ) +
+  theme_minimal()
+```
+
+
+We can clearly see that the intensity of the activity is max from 17th hour to the 19th. 18th being at the peak.
+
+
+
+## Recommendations:
+
+
+* To mitigate sedentary behavior, users could receive periodic notifications encouraging them to incorporate movement throughout their day.
+
+* The average step count should ideally be in the recommended range of 8000–10000 steps given by the CDC. The app has an opportunity to inspire users to reach a healthier goal of 10000 steps daily for when their step count is less than 8000 on the given day.
+
+* Observing a correlation between extended time in bed and increased sleep duration, the app could offer daily bedtime notifications. This not only contributes to enhancing sleep cycles but also promotes better mental and physical well-being.
+
+* The insights imply a potential strategy  to have notification feature prompting users to go to bed on certain points when the body is in resting condition(we can also make sure it is sent at nighttime). Such a feature could contribute to enhancing overall sleep duration and quality of sleep based on the observed relationship in the data analysis.
+
+* On average, a user is most active on Tuesdays. and least active on Sundays. Bellabeat can notify the user to go for a walk on days like Sunday, Monday and Friday where the activity is the lowest.
+
+* Encouraging users to engage in high-intensity exercise during the 5 to 8 PM period can be effective, given that the data indicates heightened activity levels during this period of the day.
